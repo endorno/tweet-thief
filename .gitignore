@@ -1,0 +1,5 @@
+.idea/
+settings.py
+
+*.pyc
+private_settings.py
