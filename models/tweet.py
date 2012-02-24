@@ -37,10 +37,13 @@ class User(object):
                 #WARNING ignore status info
                 print "ignore user's status"
             elif key=="following":
+                #ref. tweepy source code
                 if value is True:
                     setattr(ret,key,True)
                 else:
                     setattr(ret,key,False)
+            elif key=="_api":
+                pass
             else:
                 setattr(ret,key,value)
         return ret
@@ -49,7 +52,8 @@ class User(object):
         for k,v in kwargs.items():
             setattr(self,k,v)
     def save(self):
-       users_col.save(vars(self))
+        users_col.save(vars(self))
+        return vars(self)
 
 class Tweet(object):
     @classmethod
@@ -66,13 +70,11 @@ class Tweet(object):
         tweet=cls()
         for key,value in vars(status).items():
 
-            if key=="user":
+            if key=="user" or key=="author":
                 user=User.from_tweepy(value)
-
-                user.save()
                 setattr(tweet,key,user)
             elif key=="retweeted_status":
-                pass
+                setattr(tweet,key,Tweet.from_tweepy(value))
             elif key=="_api":
                 #unsave tweepy's api
                 pass
@@ -84,8 +86,13 @@ class Tweet(object):
         for k,v in kwargs.items():
             setattr(self,k,v)
 
-    def save(self):
+    def save(self,use_DBRef=True):
+        user=getattr(self,"user",None)
+        if user is not None and use_DBRef:
+            user.save()
+
         tweets_col.save(vars(self))
+        return vars(self)
 
 #########################
 # set handler for using original class
@@ -134,10 +141,7 @@ db.add_son_manipulator(UserTransform())
 # test code
 ###########################################
 import datetime
-class DummyTweet(object):
-    def __init__(self,text,created_at):
-        self.text=text
-        self.created_at=created_at
+
 def main():
     db.drop_collection("tweets")
     db.drop_collection("users")
@@ -146,14 +150,17 @@ def main():
     dummy_tweet.text=u"hoge"
     dummy_tweet.created_at=datetime.datetime.now()
 
+
+
     dummy_user=User()
     dummy_user.name=u"tmp"
 
     dummy_tweet.user=dummy_user
 
     tw=Tweet.from_tweepy(dummy_tweet)
-    tw.save()
-    print list(db.tweets.find())
+    tw.save(use_DBRef=False)
+    print list(db.tweets.find({"user.name":"tmp"}))
+    #print list(db.tweets.find())
 
 if __name__ == "__main__":
     main()
